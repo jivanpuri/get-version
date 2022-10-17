@@ -1,0 +1,20 @@
+name: 'get-version'
+description: 'Provides automated versioning of your commits using git tags each time your CI/CD workflow runs.'
+branding:
+  icon: 'tag'
+  color: 'yellow'
+inputs:
+  production-branch:
+    description: 'The branch to use for stable releases in production. Default is master'
+    required: false
+    default: master
+outputs:
+  revision:
+    description: 'The new version that was created and tagged in the format of <major>.<minor>.<build>[.<pre-release-tag>]'
+    value: ${{ steps.get-version.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - id: get-version
+      run: bash $GITHUB_ACTION_PATH/src/tag-version.sh ${{ inputs.production-branch }}
+      shell: bash

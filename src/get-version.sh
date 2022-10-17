@@ -1,51 +1,120 @@
-# Get-Version
-Provides automated versioning of your commits using git tags each time your CI/CD workflow runs.
-## Features
-* Generate a new version based on the last tag present & currently checked out branch.
-* Commit message decides which version to bump.
-## Version Format
-\<major\>.\<minor\>.\<patch\>\[-\<branch-name\>\]
-### Examples
-## Pushing new build
-Get-Version will always use the latest tag that was pushed to determine next version. A standard commit message will drive the increment in major or minor version number.
-### Commit
-```
-git commit -m "Adding a new file"
-```
-### Example
-1.0.7 -> 1.0.8
-## Pushing new minor revision
-A commit message with the substring '#minor' will increment your version's minor revision. 
-### Commit
-```
-git commit -m "Updating dependencies #minor"
-```
-### Example
-1.0.7 -> 1.1.7
-## Pushing new major revision
-A commit message with the substring '#major' will increment your version's major revision. 
-### Commit
-```
-git commit -m "Adding breaking changes #major"
-```
-### Example
-1.0.7 -> 2.0.7
-### !Note!
-If no tags are found then initial version is set to 1.0.0
-## Inputs
-* **production-branch**: The branch to use for stable releases in production. Default is master
-## Outputs
-* **version**: The new version that was created and tagged in the format of \<major\>.\<minor\>.\<build\>\[-\<dev\>\]
-## Setup
-```yml
-- name: Checkout  
-  uses: actions/checkout@v2  
-  with:  
-      fetch-depth: 0  
-      
-- name: Version  
-  id: version  
-  uses: jivanpuri/get-version@v1  
-  with:  
-      production-branch: master    
-```
+#! bin/bash
+
+#get-version.sh
+#Use: get-version {branch}
+#Output: {new-version}
+#Provides automated versioning of your commits using git tags each time your CI/CD workflow runs.
+#If no tags preset it will return the version as 1.0.0
+
+MASTER_BRANCH="$1";
+
+outLog() {
+	echo "$1"
+} >&2
+
+getLatestRevision() {
+	outLog "Getting latest tagged revision...";
+	if [ "$(git describe --abbrev=0 --tags | wc -l)" -eq "0" ]; then
+    outLog ":No tags exists. Setting version to 1.0.0";
+		echo "1.0.0"
+	else
+	  echo "$(git describe --abbrev=0 --tags)"
+  fi
+}
+
+getRevisionType() {
+  local MESSAGE="$(git show -s --format=%s HEAD)";
+  outLog "Getting revision type from commit message (major, minor)";
+	outLog "Commit message: $MESSAGE";
+
+	if [[ "$MESSAGE" == *"#major"* ]]; then
+		echo "major"
+	elif [[ "$MESSAGE" == *"#minor"* ]]; then
+		echo "minor"
+	else
+		echo "patch"
+	fi
+}
+
+split() { IFS="$1" read -r -a return_arr <<< "$2"; }
+
+join() { local IFS="$1"; shift; echo "$*"; }
+
+getNewRevision() {
+  OLD_VERSION=$1
+  REVISION_TYPE=$2
+  BRANCH=$3
+  MASTER_BRANCH=$4
+	outLog "Getting new revision from revision type and the old version $OLD_VERSION";
+	outLog "Revision Type: $REVISION_TYPE";
+
+	split '.' $OLD_VERSION;
+
+	major_revision=${return_arr[0]};
+	minor_revision=${return_arr[1]};
+	build_number=${return_arr[2]};
+
+	case $REVISION_TYPE in
+		major)
+			((major_revision++));
+			minor_revision=0;
+			build_number=0
+			;;
+		minor)
+			((minor_revision++));
+			build_number=0
+			;;
+		patch)
+			((build_number++))
+			;;
+		esac
+  if [ $BRANCH = "$MASTER_BRANCH" ]; then
+	  echo "$(join . $major_revision $minor_revision $build_number)"
+	else
+	  echo "$(join . $major_revision $minor_revision $build_number-dev)"
+	fi
+}
+
+tagRelease() {
+	local REVISION_TYPE="$1";
+	local REVISION="$2";
+
+	local MESSAGE="$REVISION_TYPE $REVISION";
+
+	outLog "Tagging new release ...";
+	outLog "Revision Type: $REVISION_TYPE";
+	outLog "Revision: $REVISION";
+	outLog "Annotated Message: $MESSAGE";
+
+	git tag -a "$REVISION" -m "$MESSAGE";
+	git tag -f latest
+}
+
+pushToOrigin() {
+	outLog "Pushing changes to origin ...";
+
+	git push 2> /dev/null;
+	git push origin :latest 2> /dev/null;
+	git push --tags 2> /dev/null;
+
+	outLog "Push successful.";
+}
+
+outLog "Branch: $MASTER_BRANCH";
+BRANCH="$(git branch --show-current)";
+outLog "Current branch: $BRANCH";
+REVISION="$(getLatestRevision)";
+outLog "Latest Revision: $REVISION";
+
+REVISION_TYPE="patch";
+REVISION_TYPE="$(getRevisionType)";
+outLog "Revision Type: $REVISION_TYPE";
+outLog "Generating new revision";
+NEW_REVISION="$(getNewRevision $REVISION $REVISION_TYPE $BRANCH $MASTER_BRANCH)";
+outLog "New Revision: $NEW_REVISION";
+tagRelease $REVISION_TYPE $NEW_REVISION;
+#pushToOrigin;
+
+outLog "Tag version complete.";
+outLog "Output: $NEW_REVISION";
+echo "::set-output name=version::$NEW_REVISION";

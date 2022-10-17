@@ -16,5 +16,5 @@ runs:
   using: composite
   steps:
     - id: get-version
-      run: bash $GITHUB_ACTION_PATH/src/tag-version.sh ${{ inputs.production-branch }}
+      run: bash $GITHUB_ACTION_PATH/src/get-version.sh ${{ inputs.production-branch }}
       shell: bash

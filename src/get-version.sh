@@ -109,12 +109,9 @@ outLog "Latest Revision: $REVISION";
 REVISION_TYPE="patch";
 REVISION_TYPE="$(getRevisionType)";
 outLog "Revision Type: $REVISION_TYPE";
-outLog "Generating new revision";
-NEW_REVISION="$(getNewRevision $REVISION $REVISION_TYPE $BRANCH $MASTER_BRANCH)";
-outLog "New Revision: $NEW_REVISION";
-tagRelease $REVISION_TYPE $NEW_REVISION;
+outLog "Generating new Version";
+NEW_VERSION="$(getNewRevision $REVISION $REVISION_TYPE $BRANCH $MASTER_BRANCH)";
+outLog "New Version: $NEW_VERSION";
+tagRelease $REVISION_TYPE $NEW_VERSION;
 #pushToOrigin;
-
-outLog "Tag version complete.";
-outLog "Output: $NEW_REVISION";
-echo "::set-output name=version::$NEW_REVISION";
+echo "version=$NEW_VERSION" >> $GITHUB_OUTPUT
